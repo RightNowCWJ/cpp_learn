@@ -21,9 +21,18 @@
     <ClInclude Include="test2.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="my_rtti.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\ehdata_forceinclude.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\crt\src\vcruntime\rtti.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>
