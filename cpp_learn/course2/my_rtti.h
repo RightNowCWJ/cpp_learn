@@ -16,23 +16,34 @@ public:
 	{}
 };
 
-class B: public A {
+class B: protected A {
 };
 
 class C: public B {};
 
-struct EE {
+struct MA {
+	virtual void func() {};
+};
+
+struct MB {
+	virtual void func_ex() {};
+};
+
+struct MC : public MA, public MB {
+};
+
+struct VA {
 public:
 	virtual void func() {};
 };
 
-struct AA: virtual EE {
+struct VB: virtual VA {
 };
 
-struct BB: virtual EE {
+struct VC: virtual VA {
 };
 
-struct CC: public AA, public BB {
+struct VD: public VB, public VC {
 };
 
 
@@ -43,33 +54,43 @@ void test_cast()
 
 void test_dyn()
 {
-	B *p1 = new B();
-	A* p2 = p1;
-	auto& type = typeid(A);
-	auto& type1 = typeid(p1);
-	auto& type2 = typeid(p2);
-	auto& type3 = typeid(*p2);
-	auto p3 = dynamic_cast<void*>(p2);
-
-	printf("%s %s %s %s %s \n", type.name(), type1.name(), type2.name(), type3.name(), typeid(C).name());
-
-	assert(p1 == p2);
-	assert(dynamic_cast<B*>(p1) != nullptr);
+	C *p1 = new C();
+	A* p2 = new A();
+	C* p3 = dynamic_cast<C*>(p2);
+	A* p4 = dynamic_cast<A*>(p3);
 }
 
-void test_sidecast()
+
+void test_mcast()
 {
-	CC *p1 = new CC();
-	AA *p2 = p1;
-	BB *p3 = dynamic_cast<BB*>(p2);
-	BB* p4 = p1;
-	BB* p5 = static_cast<BB*>(p1);
-	EE* p6 = dynamic_cast<EE*>(p2);
-	BB* p7 = dynamic_cast<BB*>(p6);
+	MC *p1 = new MC();
 
-	assert(p3 != nullptr);
-	assert(p4 != nullptr);
+	// up_cast
+	MA* p2 = p1;
+
+	// side_cast
+	MB* p3 = dynamic_cast<MB*>(p2);
+
+	// down_cast
+	MC* p4 = dynamic_cast<MC*>(p3);
+
 }
+
+
+void test_vcast()
+{
+	VD *p1 = new VD();
+
+	// up_cast
+	VB* p2 = p1;
+
+	// side_cast
+	VC* p3 = dynamic_cast<VC*>(p2);
+
+	// down_cast
+	VD* p4 = dynamic_cast<VD*>(p3);
+}
+
 
 #endif
 

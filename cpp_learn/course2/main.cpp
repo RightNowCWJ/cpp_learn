@@ -8,7 +8,8 @@ int main() {
 	test_data_move();
 	test_virtual_function();
 	test_dyn();
-	test_sidecast();
+	test_mcast();
+	test_vcast();
 	return 0;
 }
 
