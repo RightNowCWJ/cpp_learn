@@ -57,8 +57,22 @@ void test_dyn()
 	C *p1 = new C();
 	A* p2 = new A();
 	C* p3 = dynamic_cast<C*>(p2);
-	A* p4 = dynamic_cast<A*>(p3);
+	// A* p4 = dynamic_cast<A*>(p3);
 }
+
+
+template<typename target_type, typename src_type>
+target_type* my_dynamic_cast(src_type* input_ptr)
+{
+	
+}
+
+void* dynamic_cast_imp(
+	void *input_ptr,
+	long vf_delta,
+	void *src_void,
+	void *target_void
+);
 
 
 void test_mcast()
