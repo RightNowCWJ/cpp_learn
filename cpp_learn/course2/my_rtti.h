@@ -9,8 +9,11 @@
 
 typedef TypeDescriptor TypeDescriptor;
 
+struct Z {
+	virtual ~Z(){}
+};
 
-class A {
+class A : public Z {
 public:
 	virtual ~A()
 	{}

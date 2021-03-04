@@ -15,8 +15,8 @@
 		只有表达式是到多态类型的基类的指针或引用，并且新类型是到派生类的指针或引用，才会进行运行时检查
 
 	运行时检查的定义
-		a. 检验 表达式 所指向/标识的最终派生对象。若在该对象（最终派生对象）中 表达式 指向/指代 Derived 的公开基类，且只有一个 Derived 类型（新类型）对象从 表达式 所指向/标识的子对象派生，则转型结果指向/指代该 Derived 对象。（此之谓“向下转型（downcast）”。）
-		b. 否则，若 表达式 指向/指代最终派生对象的公开基类，而同时最终派生对象拥有 Derived 类型（新类型）的无歧义公开基类，则转型结果指向/指代该 Derived（此之谓“侧向转型（sidecast, crosscast）”。）
+		a. 检验 表达式 所指向/标识的最终派生对象。若在该对象（最终派生对象）中 表达式 指向/指代 Derived 的公开基类，且只有一个 Derived 类型（新类型）对象从 表达式 所指向/标识的子对象派生，则转型结果指向/指代该 Derived 对象。（此之谓“向下转型（down-cast）”。）
+		b. 否则，若 表达式 指向/指代最终派生对象的公开基类，而同时最终派生对象拥有 Derived 类型（新类型）的无歧义公开基类，则转型结果指向/指代该 Derived（此之谓“侧向转型（side-cast, cross-cast）”。）
 		c. 否则，检查失败
 */
 
@@ -143,22 +143,28 @@ static _RTTIBaseClassDescriptor* find_multi_interit_target_type_instance(
 )
 {
 	_RTTIBaseClassDescriptor *bcd, *target_bcd = nullptr,
-		*source_bcd = nullptr, *source_in_target_cbd;
+		*source_bcd = nullptr, *source_in_target_bcd;
 
 	_RTTIBaseClassArray *base_class_array = CHD_PBCA(*COL_PCHD(*complete_locator));
 	_RTTIBaseClassArray *target_base_class_array;
 
 	unsigned long idx = 0;
 	unsigned long num_complete_object_bases = COL_PCHD(*complete_locator)->numBaseClasses;
+		// Calculate offset of source object in complete object
 	unsigned long num_target_bases = 0;
 	unsigned long idx_target = -1;
 
+	// base_class_array是完全对象的继承层次结构，它是数组，以深度优先，从左往右的排序方式，最派生类型位于数组的第0位
+	// 通过遍历一次base_class_array，找到down-cast和cross-cast
 	for (idx = 0; idx < num_complete_object_bases; idx++)
 	{
 		bcd = CHD_PBCD(base_class_array->arrayOfBaseClassDescriptors[idx]);
 
+		// 检查是否找到目标类型
 		if (idx - idx_target > num_target_bases && typeid_is_equal(BCD_PTD(*bcd), target_type))
 		{
+			// 如果我们先找到了原类型，那么这里只能是cross-cast或者up-cast
+			// 目标类型必须是最派生类型的公有和明确的基类，并且源类型必须是最派生类型的公有基类，否则转换失败
 			if (source_bcd)
 			{
 				if ((bcd->attributes & (BCD_NOTVISIBLE | BCD_AMBIGUOUS)) ||
@@ -172,12 +178,62 @@ static _RTTIBaseClassDescriptor* find_multi_interit_target_type_instance(
 				}
 			}
 
+			// 记录找到的目标类型，及其处于完整对象继承层次的下标，以及它的基类个数
 			target_bcd = bcd;
 			idx_target = idx;
 			num_target_bases = bcd->numContainedBases;
 		}
 
+		if (typeid_is_equal(BCD_PTD(*bcd), src_type) && 
+			pmd_to_offset(complete_object, bcd->where) == src_offset)
+		{
+			if (target_bcd)
+			{
+				if (idx - idx_target <= num_target_bases)
+				{
+					// 原类型是目标类型的父类，所以这是down-cast，原类型必须是目标类型的公有基类才能转换成功
+
+					// 检查目标类型的继承层次描述符来决定原类型是否对目标类型可见
+					// 目标类型的BaseClassArray和完整对象的BaseClassArray的子集合(base_class_array[target_idx, target_idx + num_target_bases])有着相同的结构
+					// 通过下标(idx - idx_target)找到原类型在目标类型继承层次下的描述符
+					target_base_class_array = CHD_PBCA(*BCD_PCHD(*target_bcd));
+					source_in_target_bcd = target_base_class_array->arrayOfBaseClassDescriptors[idx - idx_target];
+
+					if (source_in_target_bcd->attributes & BCD_NOTVISIBLE)
+					{
+						return nullptr;
+					}
+					else
+					{
+						return target_bcd;
+					}
+					
+				}
+				else
+				{
+					// 这里是cross-cast
+					// 目标类型必须是最派生类型的公有的和明确的基类，并且原类型必须是最派生类型的公有基类
+
+					if ((target_bcd->attributes & (BCD_NOTVISIBLE | BCD_AMBIGUOUS)) ||
+						(bcd->attributes & BCD_NOTVISIBLE))
+					{
+						return nullptr;
+					}
+					else
+					{
+						return target_bcd;
+					}
+				}
+			}
+
+			// 记录找到的原类型
+			source_bcd = bcd;
+		}
+
 	}
+
+	// 在继承层次中没有找到原类型或者没有找到目标类型，这种情况转换失败
+	return nullptr;
 
 }
 
@@ -196,20 +252,30 @@ void* dynamic_cast_imp(
 	const auto src_type = static_cast<TypeDescriptor*>(src_void);
 	const auto target_type = static_cast<TypeDescriptor*>(target_void);
 
-	void* complete_object = find_complete_object(input_ptr);
-	const auto complete_allocator = get_CompleteObjectLocator_from_object(input_ptr);
+	// 完整对象指针
+	void *complete_object = find_complete_object(input_ptr);
+	// 完整对象定位器
+	const auto complete_locator = get_CompleteObjectLocator_from_object(input_ptr);
 
 	_RTTIBaseClassDescriptor *base_class = nullptr;
-	if (!((COL_PCHD(*complete_allocator))->attributes & CHD_MULTINH))
+	if (!((COL_PCHD(*complete_locator))->attributes & CHD_MULTINH))
 	{
 		// 非多重继承
-		base_class = find_signle_interit_target_type_instance(complete_allocator, src_type, target_type);
+		base_class = find_signle_interit_target_type_instance(
+			complete_locator, src_type, target_type);
 	}
 	else
 	{
-		if (!(COL_PCHD(*complete_allocator)->attributes & CHD_VIRTINH))
+
+		input_ptr = ((char *)input_ptr - vf_delta);
+
+		ptrdiff_t inptr_delta = (char *)input_ptr - (char *)complete_object;
+
+		if (!(COL_PCHD(*complete_locator)->attributes & CHD_VIRTINH))
 		{
 			// 多重非虚拟继承
+			base_class = find_multi_interit_target_type_instance(
+				complete_object, complete_locator, src_type, inptr_delta, target_type);
 		}
 		else
 		{
